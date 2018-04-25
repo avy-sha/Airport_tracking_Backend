@@ -137,10 +137,10 @@ app.post("/routes/deleteall", function (req, res) {
 });
 
 //add network to an airport
-app.post("/devices/addnetwork", function (req, res) {
+app.post("/config/addnetwork", function (req, res) {
     var Airport_id = req.body.Airport_id;
-    if (!Airport_id) return res.status(400).json({"error": "Airport_id required"});
     var Location = req.body.Location;
+    if (!Airport_id) return res.status(400).json({"error": "Airport_id required"});
     if (!Location) return res.status(400).json({"error": "Location required"});
     pool.getConnection(function (err, con) {
         con.query("select * from Devices where Airport_id = ? order by Devices.Device_id desc limit 1", [Airport_id], function (error, results, fields) {
@@ -160,7 +160,7 @@ app.post("/devices/addnetwork", function (req, res) {
                     if (error) throw err;
                     else {
                         con.release();
-                        return res.status(200).json({"Message": "Row Added"});
+                        return res.status(200).json({"Message": "New network added"});
                     }
                 });
             }
@@ -170,15 +170,15 @@ app.post("/devices/addnetwork", function (req, res) {
 });
 
 //add node to a specific network
-app.post("/devices/addnode", function (req, res) {
+app.post("/config/addnode", function (req, res) {
     var Airport_id = req.body.Airport_id;
-    if (!Airport_id) return res.status(400).json({"error": "Airport_id required"});
-    var Device_id = req.body.Device_id;
-    if (!Device_id) return res.status(400).json({"error": "Device_id required"});
+    var Network_Device_id = req.body.Network_Device_id;
     var Location = req.body.Location;
+    if (!Airport_id) return res.status(400).json({"error": "Airport_id required"});
+    if (!Network_Device_id) return res.status(400).json({"error": "Network_Device_id required"});
     if (!Location) return res.status(400).json({"error": "Location required"});
     pool.getConnection(function (err, con) {
-        con.query("select * from Devices where Airport_id = ? and Device_id = ? order by Device_id desc limit 1", [Airport_id, Device_id], function (error, results, fields) {
+        con.query("select * from Devices where Airport_id = ? and Device_id = ? order by Device_id desc limit 1", [Airport_id, Network_Device_id], function (error, results, fields) {
             if (error) {
                 console.log(error);
                 return res.status(400).json({"error": error});
@@ -203,7 +203,7 @@ app.post("/devices/addnode", function (req, res) {
                     nid = d;
                     nc = parseInt(b[0].Node_count) + 1;
                 }
-                con.query("update Devices set Node_count = ? where Device_id = ?", [nc, Device_id], function (error, results, fields) {
+                con.query("update Devices set Node_count = ? where Device_id = ?", [nc, Network_Device_id], function (error, results, fields) {
                     if (error) {
                         console.log(error);
                         return res.status(400).json({"error": error});
@@ -213,7 +213,7 @@ app.post("/devices/addnode", function (req, res) {
                             if (error) console.log(error);
                             else {
                                 con.release();
-                                return res.status(200).json({"Message": "Row Added"});
+                                return res.status(200).json({"Message": "New node successfully added"});
                             }
                         });
                     }
