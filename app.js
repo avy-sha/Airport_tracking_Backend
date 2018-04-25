@@ -12,7 +12,7 @@ var accessLogStream = fs.createWriteStream(path.join(__dirname, 'access.log'), {
 // view engine setup
 app.set('views', path.join(__dirname, 'views'));
 app.set('view engine', 'ejs');
-app.set('port', (80));
+app.set('port', (process.env.PORT || 80 ));
 // uncomment after placing your favicon in /public
 //app.use(favicon(path.join(__dirname, 'public', 'favicon.ico')));
 app.use(bodyParser.json());
@@ -111,7 +111,7 @@ app.post("/routes/saveroute", function (req, res) {
                     if (error) throw err;
                     else {
                         con.release();
-                        return res.status(200).json({"Message": "Route successfully created"});
+                        return res.status(200).json({"Message": "Route successfully created",Route_id:Route_id,Airport_id:Airport_id,Route:Route});
                     }
                 });
             }
@@ -157,10 +157,21 @@ app.post("/config/addnetwork", function (req, res) {
                     n = b[0].Network_id,
                     nid = parseInt(n) + 1;
                 con.query("insert into Devices values(?, ?, ?, ?, ?, ?)", [did, Airport_id, nid, null, Location, 0], function (error, results, fields) {
-                    if (error) throw err;
+                    if (error) {
+                        console.log(error);
+                        con.release();
+                        return res.status(400).json({"error": error});
+                    }
                     else {
                         con.release();
-                        return res.status(200).json({"Message": "New network added"});
+                        return res.status(200).json({
+                            "message": "New network successfully added",
+                            "Device_id": did,
+                            "Airport_id": Airport_id,
+                            "Network_id": nid,
+                            "Location": Location,
+                            "Node_count": 0
+                        });
                     }
                 });
             }
@@ -210,10 +221,22 @@ app.post("/config/addnode", function (req, res) {
                     }
                     else {
                         con.query("insert into Devices values(?, ?, ?, ?, ?, ?)", [did, Airport_id, n, nid, Location, -1], function (error, results, fields) {
-                            if (error) console.log(error);
-                            else {
+                            if (error) {
+                                console.log(error);
                                 con.release();
-                                return res.status(200).json({"Message": "New node successfully added"});
+                                return res.status(400).json({"error": error});
+                            }
+                        else {
+                                con.release();
+                                return res.status(200).json({
+                                    "message": "New node successfully added",
+                                    "Device_id": did,
+                                    "Airport_id": Airport_id,
+                                    "Network_id": n,
+                                    "Node_id": nid,
+                                    "Location": Location,
+                                    "Node_count": -1
+                                });
                             }
                         });
                     }
@@ -221,8 +244,8 @@ app.post("/config/addnode", function (req, res) {
             }
         });
     });
-
 });
+
 
 // catch 404 and forward to error handler
 app.use(function (req, res, next) {
