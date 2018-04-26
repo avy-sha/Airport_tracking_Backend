@@ -343,6 +343,7 @@ app.post("/routes/flight", function (req, res) {
     }
 );
 
+//Endpoint for posting all data(from nodes)
 app.post("/Devicedata", function (req, res) {
     var Device_id = req.body.Device_id;
     var Bag_id = req.body.Bag_id;
@@ -391,6 +392,7 @@ app.listen(app.get('port'), function () {
     console.log('Server has started! http://localhost:' + app.get('port') + '/');
 });
 
+//function to send alert to the authorities
 function send_alert(Bag_id, Device_id, Time, Route, Flight_Id) {
     var text = 'The luggage with id: ' + Bag_id + " (Flight_id: " + Flight_Id + ") which was supposed to go through the allotted Route-> \"" + Route + "\" has diverged and was last seen at node with id->" + Device_id + ".\nThis data was taken at " + Time;
     var authority1 = "amansood362@gmail.com";
