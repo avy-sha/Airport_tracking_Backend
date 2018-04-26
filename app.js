@@ -7,12 +7,14 @@ var mysql = require('mysql');
 var fs = require('fs');
 var config = require("./config");
 var app = express();
+var AWS = require('aws-sdk');
+var nodemailer = require('nodemailer');
 var accessLogStream = fs.createWriteStream(path.join(__dirname, 'access.log'), {flags: 'a'});
 
 // view engine setup
 app.set('views', path.join(__dirname, 'views'));
 app.set('view engine', 'ejs');
-app.set('port', (process.env.PORT || 80 ));
+app.set('port', (process.env.PORT));
 // uncomment after placing your favicon in /public
 //app.use(favicon(path.join(__dirname, 'public', 'favicon.ico')));
 app.use(bodyParser.json());
@@ -24,6 +26,11 @@ app.use(morgan('combined', {stream: accessLogStream}));
 app.use(bodyParser.urlencoded({extended: false}));
 app.use(bodyParser.json());
 
+/*AWS.config.update({
+    accessKeyId: config.AWS.accessKeyId,
+    secretAccessKey: config.AWS.secretAccessKey,
+    region: config.AWS.region
+});*/
 
 app.use(function (req, res, next) {
 
@@ -111,13 +118,18 @@ app.post("/routes/saveroute", function (req, res) {
                     if (error) throw err;
                     else {
                         con.release();
-                        return res.status(200).json({"Message": "Route successfully created",Route_id:Route_id,Airport_id:Airport_id,Route:Route});
+                        return res.status(200).json({
+                            "Message": "Route successfully created",
+                            Route_id: Route_id,
+                            Airport_id: Airport_id,
+                            Route: Route
+                        });
                     }
                 });
             }
         });
     });
-})
+});
 
 //Delete all entries for a particular airport from routes testing purpose only
 app.post("/routes/deleteall", function (req, res) {
@@ -226,7 +238,7 @@ app.post("/config/addnode", function (req, res) {
                                 con.release();
                                 return res.status(400).json({"error": error});
                             }
-                        else {
+                            else {
                                 con.release();
                                 return res.status(200).json({
                                     "message": "New node successfully added",
@@ -246,6 +258,128 @@ app.post("/config/addnode", function (req, res) {
     });
 });
 
+//get all routes for an specific airport
+app.post("/routes/getall", function (req, res) {
+        var Airport_id = req.body.Airport_id;
+        pool.getConnection(function (err, con) {
+            con.query("SELECT * from Routes where Airport_id=?", [Airport_id], function (error, results, fields) {
+                if (error) {
+                    con.release();
+                    console.log(error);
+                    return res.status(400).json({"error": error});
+                }
+                else {
+                    con.release();
+                    return res.status(200).json(results);
+                }
+            });
+        })
+    }
+);
+
+//get all networks for an specific airport
+app.post("/devices/allnetworks", function (req, res) {
+        var Airport_id = req.body.Airport_id;
+        pool.getConnection(function (err, con) {
+            con.query("SELECT * from Devices where Airport_id=? and Node_id is NULL", [Airport_id], function (error, results, fields) {
+                if (error) {
+                    con.release();
+                    console.log(error);
+                    return res.status(400).json({"error": error});
+                }
+                else {
+                    con.release();
+                    return res.status(200).json(results);
+                }
+            });
+        })
+    }
+);
+
+//map a route to a flight
+app.post("/routes/mapflight", function (req, res) {
+    var Airport_id = req.body.Airport_id;
+    var Route_id = req.body.Route_id;
+    var Flight_id = req.body.Flight_id;
+
+    if (!Airport_id || !Route_id || !Flight_id) return res.status(400).json({"error": "Airport_id or Route_id or Flight_id missing !! "});
+    pool.getConnection(function (err, con) {
+        con.query("SELECT Route from Routes where Route_id = ? ", [Route_id], function (error, results, fields) {
+            var Route = results[0].Route;
+            con.query("INSERT INTO Flights_Routes values(?,?,?,?)", [Route_id, Flight_id, Airport_id, Route], function (error, results, fields) {
+                if (error) throw err;
+                else {
+                    con.release();
+                    return res.status(200).json({
+                        "Message": "Mapping Successfully Done",
+                        Route_id: Route_id,
+                        Flight_id: Flight_id,
+                        Route: Route
+                    });
+                }
+            });
+
+        });
+    })
+});
+
+//Get the corresponding route for the flight
+app.post("/routes/flight", function (req, res) {
+        var Airport_id = req.body.Airport_id;
+        var Flight_id = req.body.Flight_id;
+        pool.getConnection(function (err, con) {
+            con.query("SELECT * from Flights_Routes where Airport_id=? and Flight_id=?", [Airport_id, Flight_id], function (error, results, fields) {
+                if (error) {
+                    con.release();
+                    console.log(error);
+                    return res.status(400).json({"error": error});
+                }
+                else {
+                    con.release();
+                    return res.status(200).json(results);
+                }
+            });
+        })
+    }
+);
+
+app.post("/Devicedata", function (req, res) {
+    var Device_id = req.body.Device_id;
+    var Bag_id = req.body.Bag_id;
+    var Time = req.body.Time;
+
+    if (!Device_id || !Bag_id || !Time) return res.status(400).json({"error": "Device_id or Bag_id or Time missing !! "});
+
+    var PNR = Bag_id.split("_")[0];
+    var Airport_id = Device_id.split("_")[0];
+    pool.getConnection(function (err, con) {
+
+        con.query("INSERT INTO Device_Data values(?,?,?)", [Bag_id, Device_id, Time], function (error, results, fields) {
+            if (error) throw err;
+            else {
+                res.status(200).json({
+                    "Message": "Entry Successful",
+                });
+            }
+        });
+
+        con.query("select Flight_id from Pnr_Data where pnr=?", [PNR], function (error, results, fields) {
+            var Flight_Id = results[0].Flight_id;
+            con.query("select Route from Flights_Routes where Flight_Id=?", [Flight_Id], function (error, results, fields) {
+                var Route = results[0].Route;
+                Route = Route.split(",");
+
+                var check = false;
+                for (var i = 0; i < Route.length - 1; i++) {
+                    if (Route[i] == Device_id) check = true;
+                }
+                if (check == false) {
+                    send_alert(Bag_id, Device_id, Time, Route, Flight_Id);
+                }
+            });
+        })
+    })
+});
 
 // catch 404 and forward to error handler
 app.use(function (req, res, next) {
@@ -256,5 +390,48 @@ app.use(function (req, res, next) {
 app.listen(app.get('port'), function () {
     console.log('Server has started! http://localhost:' + app.get('port') + '/');
 });
+
+function send_alert(Bag_id, Device_id, Time, Route, Flight_Id) {
+    var text = 'The luggage with id: ' + Bag_id + " (Flight_id: " + Flight_Id + ") which was supposed to go through the allotted Route-> \"" + Route + "\" has diverged and was last seen at node with id->" + Device_id + ".\nThis data was taken at " + Time;
+    var authority1 = "amansood362@gmail.com";
+    var authority2 = "abhisri2090@gmail.com";
+
+    // Not the movie transporter!
+    var transporter = nodemailer.createTransport({
+        service: 'Gmail',
+        auth: {
+            user: config.mail_acc.username, // Your email id
+            pass: config.mail_acc.password // Your password
+        }
+    });
+    var mailOptions1 = {
+        from: 'AIRPORTSECURITY@JIIT.com', // sender address
+        to: authority1, // list of receivers
+        subject: 'Alert for airport tracking Bag_id-> ' + Bag_id, // Subject line
+        text: text
+    };
+    var mailOptions2 = {
+        from: 'AIRPORTSECURITY@JIIT.com', // sender address
+        to: authority2, // list of receivers
+        subject: 'Alert for airport tracking Bag_id-> ' + Bag_id, // Subject line
+        text: text
+    };
+
+    transporter.sendMail(mailOptions1, function (error, info) {
+        if (error) {
+            console.log(error);
+        } else {
+            transporter.sendMail(mailOptions2, function (error, info) {
+                if (error) {
+                    console.log(error);
+                } else {
+                    console.log('Message sent: ' + info.response);
+                }
+                ;
+            });
+        }
+        ;
+    });
+}
 
 module.exports = app;
