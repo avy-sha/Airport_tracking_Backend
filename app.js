@@ -155,20 +155,15 @@ app.post("/config/addnetwork", function (req, res) {
     if (!Airport_id) return res.status(400).json({"error": "Airport_id required"});
     if (!Location) return res.status(400).json({"error": "Location required"});
     pool.getConnection(function (err, con) {
-        con.query("select * from Devices where Airport_id = ? order by Devices.Device_id desc limit 1", [Airport_id], function (error, results, fields) {
+        con.query("select max(CAST(Network_id AS UNSIGNED)) from Devices where Airport_id = ? ", [Airport_id], function (error, results, fields) {
             if (error) {
                 console.log(error);
                 return res.status(400).json({"error": error});
             }
             else {
-                var a = JSON.stringify(results),
-                    b = JSON.parse(a),
-                    c = b[0].Device_id.split("_"),
-                    d = parseInt(c[1]) + 1,
-                    did = c[0] + "_" + d + "_",
-                    n = b[0].Network_id,
-                    nid = parseInt(n) + 1;
-                con.query("insert into Devices values(?, ?, ?, ?, ?, ?)", [did, Airport_id, nid, null, Location, 0], function (error, results, fields) {
+                var n = parseInt(results[0]["max(CAST(Network_id AS UNSIGNED))"]) + 1;
+                var Device_id = Airport_id+"_"+n+"_";
+                con.query("insert into Devices values(?, ?, ?, ?, ?, ?)", [Device_id, Airport_id, n, null, Location, 0], function (error, results, fields) {
                     if (error) {
                         console.log(error);
                         con.release();
@@ -178,9 +173,9 @@ app.post("/config/addnetwork", function (req, res) {
                         con.release();
                         return res.status(200).json({
                             "message": "New network successfully added",
-                            "Device_id": did,
+                            "Device_id": Device_id,
                             "Airport_id": Airport_id,
-                            "Network_id": nid,
+                            "Network_id": n,
                             "Location": Location,
                             "Node_count": 0
                         });
@@ -396,7 +391,8 @@ app.listen(app.get('port'), function () {
 function send_alert(Bag_id, Device_id, Time, Route, Flight_Id) {
     var text = 'The luggage with id: ' + Bag_id + " (Flight_id: " + Flight_Id + ") which was supposed to go through the allotted Route-> \"" + Route + "\" has diverged and was last seen at node with id->" + Device_id + ".\nThis data was taken at " + Time;
     var authority1 = "amansood362@gmail.com";
-    var authority2 = "abhisri2090@gmail.com";
+  //  var authority2 = "abhisri2090@gmail.com";
+    var authority2="sarthak.kh07@gmail.com";
 
     // Not the movie transporter!
     var transporter = nodemailer.createTransport({
