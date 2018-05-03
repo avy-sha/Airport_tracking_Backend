@@ -162,6 +162,7 @@ app.post("/config/addnetwork", function (req, res) {
             }
             else {
                 var n = parseInt(results[0]["max(CAST(Network_id AS UNSIGNED))"]) + 1;
+                if(isNaN(n)){n=0}
                 var Device_id = Airport_id+"_"+n+"_";
                 con.query("insert into Devices values(?, ?, ?, ?, ?, ?)", [Device_id, Airport_id, n, null, Location, 0], function (error, results, fields) {
                     if (error) {
@@ -390,9 +391,9 @@ app.listen(app.get('port'), function () {
 //function to send alert to the authorities
 function send_alert(Bag_id, Device_id, Time, Route, Flight_Id) {
     var text = 'The luggage with id: ' + Bag_id + " (Flight_id: " + Flight_Id + ") which was supposed to go through the allotted Route-> \"" + Route + "\" has diverged and was last seen at node with id->" + Device_id + ".\nThis data was taken at " + Time;
-    var authority1 = "amansood362@gmail.com";
-  //  var authority2 = "abhisri2090@gmail.com";
-    var authority2="sarthak.kh07@gmail.com";
+  //  var authority1 = "amansood362@gmail.com";
+    var authority2 = "abhisri2090@gmail.com";
+   // var authority2="sarthak.kh07@gmail.com";
 
     // Not the movie transporter!
     var transporter = nodemailer.createTransport({
@@ -402,12 +403,12 @@ function send_alert(Bag_id, Device_id, Time, Route, Flight_Id) {
             pass: config.mail_acc.password // Your password
         }
     });
-    var mailOptions1 = {
+/*    var mailOptions1 = {
         from: 'AIRPORTSECURITY@JIIT.com', // sender address
         to: authority1, // list of receivers
         subject: 'Alert for airport tracking Bag_id-> ' + Bag_id, // Subject line
         text: text
-    };
+    };*/
     var mailOptions2 = {
         from: 'AIRPORTSECURITY@JIIT.com', // sender address
         to: authority2, // list of receivers
@@ -415,18 +416,10 @@ function send_alert(Bag_id, Device_id, Time, Route, Flight_Id) {
         text: text
     };
 
-    transporter.sendMail(mailOptions1, function (error, info) {
+    transporter.sendMail(mailOptions2, function (error, info) {
         if (error) {
             console.log(error);
-        } else {
-            transporter.sendMail(mailOptions2, function (error, info) {
-                if (error) {
-                    console.log(error);
-                } else {
-                    console.log('Message sent: ' + info.response);
-                }
-                ;
-            });
+        } else {console.log('Message sent: ' + info.response);
         }
         ;
     });
